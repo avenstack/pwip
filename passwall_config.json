@@ -1,7 +1,7 @@
 {
   "listen": ":8080",
   "enable_subscription": true,
-  "enable_speedtest": false,
+  "enable_speedtest": true,
   "config_reload_interval": "5s",
   "preferred_ip_csv": "preferred_ips.csv",
   "preferred_top_n": 20,
