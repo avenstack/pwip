@@ -64,11 +64,45 @@ curl -s 'http://127.0.0.1:8080/sub/passwall?x-token=your-token' | base64 -d
 - `{{IP}}`：替换为单个优选 IP
 - `{{IP_LIST}}`：替换为前 N 个优选 IP（由 `use_top_n` 控制）
 
+`ip_strategy` 用法（针对 `{{IP}}`）：
+
+- `first`（默认）：模板里所有 `{{IP}}` 都替换为同一个 IP
+- `random`：模板里所有 `{{IP}}` 都替换为同一个随机 IP
+- `round_robin`：每次请求轮换一个 IP，模板内仍是同一个 IP
+- `per_line`：按出现顺序逐个替换 `{{IP}}`，多行可得到不同 IP
+
 示例（多行）：
 
 ```txt
 vless://uuid@{{IP}}:443?type=ws&security=tls&sni=example.com#node-1
 vless://uuid@{{IP}}:443?type=ws&security=tls&sni=example.com#node-2
+```
+
+VMess 也支持：当模板行是 `vmess://` 时，程序会自动：
+
+1. 对 `vmess://` 后的内容做 Base64 解码
+2. 解析为 JSON
+3. 把 `add` 字段替换为优选 IP
+4. 再编码回 `vmess://` 链接
+
+例如解码后 JSON：
+
+```json
+{"v":"2","ps":"备注","add":"sfdsf","port":"","id":"","type":"none","net":"tcp","security":"none"}
+```
+
+如果你希望第一行和第二行是不同 IP，可这样配置：
+
+```json
+{
+  "subscriptions": [
+    {
+      "path": "/sub/passwall",
+      "ip_strategy": "per_line",
+      "use_top_n": 20
+    }
+  ]
+}
 ```
 
 ## 常见场景

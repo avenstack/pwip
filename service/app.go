@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -205,13 +206,11 @@ func (a *App) renderSubscription(rule SubscriptionConfig, records []PreferredIPR
 		rule.UseTopN = 1
 	}
 
-	selectedIP := ""
 	if strings.Contains(content, rule.IPPlaceholder) {
-		selectedIP = a.pickIP(rule, records)
-		if selectedIP == "" {
-			return "", fmt.Errorf("暂无优选IP数据")
+		content, err = a.replaceIPPlaceholders(rule, records, content)
+		if err != nil {
+			return "", err
 		}
-		content = strings.ReplaceAll(content, rule.IPPlaceholder, selectedIP)
 	}
 
 	if strings.Contains(content, rule.IPListPlaceholder) {
@@ -230,10 +229,146 @@ func (a *App) renderSubscription(rule SubscriptionConfig, records []PreferredIPR
 		content = strings.ReplaceAll(content, rule.IPListPlaceholder, strings.Join(ipList, rule.IPListSeparator))
 	}
 
+	content, err = a.replaceVMESSAdd(rule, records, content)
+	if err != nil {
+		return "", err
+	}
+
 	if rule.Base64 {
 		content = base64.StdEncoding.EncodeToString([]byte(content))
 	}
 	return content, nil
+}
+
+func (a *App) replaceIPPlaceholders(rule SubscriptionConfig, records []PreferredIPRecord, content string) (string, error) {
+	if len(records) == 0 {
+		return "", fmt.Errorf("暂无优选IP数据")
+	}
+
+	replaceCount := strings.Count(content, rule.IPPlaceholder)
+	if replaceCount <= 0 {
+		return content, nil
+	}
+
+	ips, err := a.selectIPsForRule(rule, records, replaceCount)
+	if err != nil {
+		return "", err
+	}
+	for _, ip := range ips {
+		content = strings.Replace(content, rule.IPPlaceholder, ip, 1)
+	}
+	return content, nil
+}
+
+func (a *App) selectIPsForRule(rule SubscriptionConfig, records []PreferredIPRecord, count int) ([]string, error) {
+	if count <= 0 {
+		return []string{}, nil
+	}
+	if len(records) == 0 {
+		return nil, fmt.Errorf("暂无优选IP数据")
+	}
+
+	ips := make([]string, count)
+	strategy := strings.ToLower(strings.TrimSpace(rule.IPStrategy))
+	switch strategy {
+	case "per_line", "per_placeholder":
+		limit := len(records)
+		// per_line 模式下 use_top_n > 1 时用于限制候选 IP 范围；<=1 视为不限制。
+		if rule.UseTopN > 1 && rule.UseTopN < limit {
+			limit = rule.UseTopN
+		}
+		for i := 0; i < count; i++ {
+			ips[i] = records[i%limit].IP
+		}
+	default:
+		selectedIP := a.pickIP(rule, records)
+		if selectedIP == "" {
+			return nil, fmt.Errorf("暂无优选IP数据")
+		}
+		for i := 0; i < count; i++ {
+			ips[i] = selectedIP
+		}
+	}
+	return ips, nil
+}
+
+func (a *App) replaceVMESSAdd(rule SubscriptionConfig, records []PreferredIPRecord, content string) (string, error) {
+	lines := strings.Split(content, "\n")
+	vmessLineIndexes := make([]int, 0)
+	for i, line := range lines {
+		if strings.HasPrefix(strings.TrimSpace(line), "vmess://") {
+			vmessLineIndexes = append(vmessLineIndexes, i)
+		}
+	}
+	if len(vmessLineIndexes) == 0 {
+		return content, nil
+	}
+
+	ips, err := a.selectIPsForRule(rule, records, len(vmessLineIndexes))
+	if err != nil {
+		return "", err
+	}
+
+	for i, lineIdx := range vmessLineIndexes {
+		raw := strings.TrimSpace(lines[lineIdx])
+		vmessPayload := strings.TrimPrefix(raw, "vmess://")
+		jsonBody, encodeBack, err := decodeBase64JSON(vmessPayload)
+		if err != nil {
+			return "", fmt.Errorf("解析 vmess 失败(第 %d 行): %w", lineIdx+1, err)
+		}
+
+		var vmess map[string]interface{}
+		if err := json.Unmarshal(jsonBody, &vmess); err != nil {
+			return "", fmt.Errorf("解析 vmess JSON 失败(第 %d 行): %w", lineIdx+1, err)
+		}
+		vmess["add"] = ips[i]
+
+		newBody, err := json.Marshal(vmess)
+		if err != nil {
+			return "", fmt.Errorf("编码 vmess JSON 失败(第 %d 行): %w", lineIdx+1, err)
+		}
+		lines[lineIdx] = "vmess://" + encodeBack(newBody)
+	}
+
+	return strings.Join(lines, "\n"), nil
+}
+
+func decodeBase64JSON(raw string) ([]byte, func([]byte) string, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil, nil, fmt.Errorf("空的 vmess 数据")
+	}
+
+	padded := raw
+	if rem := len(padded) % 4; rem != 0 {
+		padded += strings.Repeat("=", 4-rem)
+	}
+	rawNoPad := strings.TrimRight(raw, "=")
+
+	type candidate struct {
+		decode func(string) ([]byte, error)
+		encode func([]byte) string
+		input  string
+	}
+	candidates := []candidate{
+		{decode: base64.StdEncoding.DecodeString, encode: base64.StdEncoding.EncodeToString, input: padded},
+		{decode: base64.URLEncoding.DecodeString, encode: base64.URLEncoding.EncodeToString, input: padded},
+		{decode: base64.RawStdEncoding.DecodeString, encode: base64.RawStdEncoding.EncodeToString, input: rawNoPad},
+		{decode: base64.RawURLEncoding.DecodeString, encode: base64.RawURLEncoding.EncodeToString, input: rawNoPad},
+	}
+
+	var lastErr error
+	for _, c := range candidates {
+		out, err := c.decode(c.input)
+		if err == nil {
+			return out, c.encode, nil
+		}
+		lastErr = err
+	}
+	if lastErr == nil {
+		lastErr = fmt.Errorf("未知错误")
+	}
+	return nil, nil, lastErr
 }
 
 func (a *App) pickIP(rule SubscriptionConfig, records []PreferredIPRecord) string {

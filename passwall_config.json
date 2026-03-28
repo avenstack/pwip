@@ -34,15 +34,16 @@
       "name": "passwall",
       "path": "/sub/passwall",
       "token_template_files": {
-        "your-token": "passwall_template.txt"
+        "your-token": "passwall_template.txt",
+        "e52108ca": "/home/aven/pwip/passwall_template.txt"
       },
       "content_type": "text/plain; charset=utf-8",
       "base64": true,
       "ip_placeholder": "{{IP}}",
       "ip_list_placeholder": "{{IP_LIST}}",
       "ip_list_separator": ",",
-      "use_top_n": 1,
-      "ip_strategy": "first"
+      "use_top_n": 5,
+      "ip_strategy": "per_line"
     }
   ]
 }
