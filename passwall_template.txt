@@ -1,0 +1,2 @@
+vless://uuid@{{IP}}:443?type=ws&security=tls&sni=example.com#node-1
+vless://uuid@{{IP}}:443?type=ws&security=tls&sni=example.com#node-2

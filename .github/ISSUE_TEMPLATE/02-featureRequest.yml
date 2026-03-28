@@ -1,0 +1,42 @@
+name: 功能建议 (Feature request)
+description: 提交你希望新增或改进的功能
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        请尽量描述清楚“使用场景 -> 当前问题 -> 期望效果”。
+        这样可以更快评估与落地。
+
+  - type: textarea
+    id: scenario
+    attributes:
+      label: 使用场景
+      description: 你在什么场景下需要这个功能？
+      placeholder: 例如：多个用户通过 token 获取不同订阅模板...
+    validations:
+      required: true
+
+  - type: textarea
+    id: demand
+    attributes:
+      label: 功能需求
+      description: 希望新增什么能力？
+      placeholder: 请具体说明输入、输出和行为规则
+    validations:
+      required: true
+
+  - type: textarea
+    id: expectation
+    attributes:
+      label: 预期方案
+      description: 你期望的配置方式或接口形式（可选）
+      placeholder: 例如：新增配置项 xxx，接口参数 xxx
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: 补充信息
+      description: 其他补充说明（示例、截图、参考链接等）
+      placeholder: 请输入...

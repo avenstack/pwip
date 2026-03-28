@@ -1,0 +1,44 @@
+name: 反馈问题 (Bug report)
+description: 运行报错、订阅异常、测速结果异常等问题
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        提交前请先确认：
+        - 已阅读 README 的使用说明
+        - 已检查配置文件格式是否正确
+        - 问题可稳定复现（最好附复现步骤）
+
+  - type: textarea
+    id: description
+    attributes:
+      label: 问题描述
+      description: 详细描述你遇到的问题，以及复现步骤
+      placeholder: 例如：启动后访问 /sub/passwall 返回 404，复现步骤如下...
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: 软件版本
+      description: 例如 v0.1.0，或你当前使用的 commit hash
+      placeholder: 请输入版本号或 commit
+    validations:
+      required: true
+
+  - type: textarea
+    id: config
+    attributes:
+      label: 关键配置（请脱敏）
+      description: 建议贴出与问题相关的配置片段（如 subscriptions、speedtest）
+      placeholder: 请隐藏 token、域名、UUID 等敏感信息
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: 日志与截图
+      description: 粘贴报错日志、命令输出或截图
+      placeholder: 可粘贴文本或直接拖拽图片
