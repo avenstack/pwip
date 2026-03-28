@@ -119,6 +119,11 @@ jobs:
 
           cp "build/${BIN_NAME}" "${PKG_DIR}/${BIN_NAME}"
           cp README.md LICENSE passwall_config.json passwall_template.txt "${PKG_DIR}/"
+          for extra_file in ip.txt ipv6.txt; do
+            if [ -f "${extra_file}" ]; then
+              cp "${extra_file}" "${PKG_DIR}/"
+            fi
+          done
 
           if [ "${{ matrix.archive }}" = "zip" ]; then
             (cd package && zip -rq "../dist/${PKG_BASE}.zip" "${PKG_BASE}")
